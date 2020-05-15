@@ -7,6 +7,7 @@ import io.ktor.application.install
 import io.ktor.features.CORS
 import io.ktor.features.CallLogging
 import io.ktor.http.ContentType
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.locations.*
 import io.ktor.request.path
@@ -34,6 +35,7 @@ class Subscription(val id: String) {
 fun Application.module() {
     install(Locations)
     install(CORS) {
+        method(HttpMethod.Delete)
         anyHost() // Doesn't really matter
     }
     install(CallLogging) {
@@ -46,6 +48,7 @@ fun Application.module() {
     routing {
 
         val timeout = SECONDS.toMillis(application.environment.config.property("settings.timeout").getString().toLong())
+        val sendKey = application.environment.config.propertyOrNull("settings.sendKey")?.getString()
 
         // Subscribe
         post<Subscription> {
@@ -60,12 +63,17 @@ fun Application.module() {
 
         // Send to the subscriber of the id
         post<Subscription.Send> {
-            val receiver = connections[it.parent.id]
-            if (receiver != null) {
-                receiver.respondBytes(call.receive(), ContentType.parse("application/json"))
-                connections.remove(it.parent.id)
-                call.respond(HttpStatusCode.OK)
-            } else call.respond(HttpStatusCode.NotFound)
+            // Header must match the authentication key if it exists in the application.conf
+            if (sendKey != call.request.headers["Polling-Authentication"]) {
+                call.respond(HttpStatusCode.Unauthorized)
+            } else {
+                val receiver = connections[it.parent.id]
+                if (receiver != null) {
+                    receiver.respondBytes(call.receive(), ContentType.parse("application/json"))
+                    connections.remove(it.parent.id)
+                    call.respond(HttpStatusCode.OK)
+                } else call.respond(HttpStatusCode.NotFound)
+            }
         }
 
         // Unsubscribe
