@@ -1,5 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.Coroutines
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 val ktor_version: String by project
 val kotlin_version: String by project
@@ -8,6 +9,7 @@ val logback_version: String by project
 plugins {
     application
     kotlin("jvm") version "1.3.70"
+    id("com.github.johnrengelman.shadow") version "5.2.0"
 }
 
 group = "dev.toppe.datapolling"
@@ -15,6 +17,22 @@ version = "0.0.1"
 
 application {
     mainClassName = "io.ktor.server.netty.EngineMain"
+}
+
+tasks {
+    named<ShadowJar>("shadowJar") {
+        archiveBaseName.set("shadow")
+        mergeServiceFiles()
+        manifest {
+            attributes(mapOf("Main-Class" to application.mainClassName))
+        }
+    }
+}
+
+tasks {
+    build {
+        dependsOn(shadowJar)
+    }
 }
 
 repositories {
