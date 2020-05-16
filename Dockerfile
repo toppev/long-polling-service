@@ -7,11 +7,11 @@ WORKDIR $GRADLE_SRC
 # Cache depenencies
 COPY --chown=gradle:gradle build.gradle.kts settings.gradle.kts gradlew $GRADLE_SRC
 COPY --chown=gradle:gradle gradle $GRADLE_SRC/gradle
-RUN gradle build --no-daemon || return 0
+RUN gradle build || return 0
 
 # Build
 COPY --chown=gradle:gradle . $GRADLE_SRC
-RUN gradle build --no-daemon
+RUN gradle build
 
 # Run
 FROM openjdk:8-alpine
