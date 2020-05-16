@@ -1,4 +1,4 @@
-# docker build . -t data-polling
+# docker build . -t long-polling
 
 FROM gradle:jdk8 as builder
 ENV GRADLE_SRC=/home/gradle/src/
@@ -18,6 +18,6 @@ FROM openjdk:8-alpine
 ENV APP_HOME=/app/
 WORKDIR $APP_HOME
 # Only copy the shadow/fat jar
-COPY --from=builder /home/gradle/src/build/libs/*all.jar $APP_HOME/data-polling.jar
+COPY --from=builder /home/gradle/src/build/libs/*all.jar $APP_HOME/long-polling.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "data-polling.jar"]
+ENTRYPOINT ["java", "-jar", "long-polling.jar"]

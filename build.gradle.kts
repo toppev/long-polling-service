@@ -12,7 +12,7 @@ plugins {
     id("com.github.johnrengelman.shadow") version "5.2.0"
 }
 
-group = "dev.toppe.datapolling"
+group = "dev.toppe.longpolling"
 version = "0.0.1"
 
 application {

@@ -1,4 +1,4 @@
-package dev.toppe.datapolling
+package dev.toppe.longpolling
 
 import io.ktor.application.Application
 import io.ktor.application.ApplicationCall

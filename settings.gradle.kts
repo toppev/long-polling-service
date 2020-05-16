@@ -1,1 +1,1 @@
-rootProject.name = "data-polling"
+rootProject.name = "long-polling"
