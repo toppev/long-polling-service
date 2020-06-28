@@ -43,21 +43,38 @@ fun Application.module() {
         filter { call -> call.request.path().startsWith("/") }
     }
 
-    val connections = ConcurrentHashMap<String, ApplicationCall>()
+    // Receivers waiting for senders
+    val receivers = ConcurrentHashMap<String, ApplicationCall>()
+    // Senders waiting for receivers
+    val senders = ConcurrentHashMap<String, ApplicationCall>()
 
     routing {
 
-        val timeout = SECONDS.toMillis(application.environment.config.property("settings.timeout").getString().toLong())
+        val configSecondsInMillis = { it: String ->
+            SECONDS.toMillis(application.environment.config.property(it).getString().toLong())
+        }
+        val receiverTimeout = configSecondsInMillis("settings.timeout")
+        val senderTimeout = configSecondsInMillis("settings.senderTimeout")
+
         val sendKey = application.environment.config.propertyOrNull("settings.sendKey")?.getString()
 
         // Subscribe
         post<Subscription> {
-            connections[it.id] = call
-            delay(timeout)
-            // Remove if still exists
-            if (connections.containsKey(it.id)) {
-                connections.remove(it.id)
-                call.respond(HttpStatusCode.RequestTimeout)
+            // Check if the sender is waiting
+            val sender = senders[it.id]
+            if (sender != null) {
+                call.respondBytes(sender.receive(), ContentType.parse("application/json"))
+                senders.remove(it.id)
+                sender.respond(HttpStatusCode.OK)
+            } else {
+                // Otherwise wait for a sender
+                receivers[it.id] = call
+                delay(receiverTimeout)
+                // Remove if still exists
+                if (receivers[it.id] === call) {
+                    receivers.remove(it.id)
+                    call.respond(HttpStatusCode.RequestTimeout)
+                }
             }
         }
 
@@ -67,20 +84,28 @@ fun Application.module() {
             if (sendKey != call.request.headers["Polling-Authentication"]) {
                 call.respond(HttpStatusCode.Unauthorized)
             } else {
-                val receiver = connections[it.parent.id]
+                val id = it.parent.id
+                val receiver = receivers[id]
                 if (receiver != null) {
                     receiver.respondBytes(call.receive(), ContentType.parse("application/json"))
-                    connections.remove(it.parent.id)
+                    receivers.remove(id)
                     call.respond(HttpStatusCode.OK)
-                } else call.respond(HttpStatusCode.NotFound)
+                } else {
+                    // Not found, wait if the receiver connects
+                    senders[id] = call
+                    delay(senderTimeout)
+                    if (senders[id] === call) {
+                        senders.remove(id)
+                    }
+                    call.respond(HttpStatusCode.RequestTimeout)
+                }
             }
         }
 
         // Unsubscribe
         delete<Subscription> {
-            connections.remove(it.id)
+            receivers.remove(it.id)
             call.respond(HttpStatusCode.NoContent)
         }
     }
-
 }
