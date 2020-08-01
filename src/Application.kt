@@ -10,7 +10,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.locations.*
-import io.ktor.request.path
 import io.ktor.request.receive
 import io.ktor.response.respond
 import io.ktor.response.respondBytes
@@ -33,15 +32,16 @@ class Subscription(val id: String) {
 @KtorExperimentalAPI
 @KtorExperimentalLocationsAPI
 fun Application.module() {
-    install(Locations)
-    install(CORS) {
-        method(HttpMethod.Delete)
-        anyHost() // Doesn't really matter
-    }
     install(CallLogging) {
         level = Level.INFO
-        filter { call -> call.request.path().startsWith("/") }
     }
+    install(CORS) {
+        method(HttpMethod.Options)
+        method(HttpMethod.Delete)
+        method(HttpMethod.Post)
+        anyHost()
+    }
+    install(Locations)
 
     // Receivers waiting for senders
     val receivers = ConcurrentHashMap<String, ApplicationCall>()
@@ -62,6 +62,7 @@ fun Application.module() {
         post<Subscription> {
             // Check if the sender is waiting
             val sender = senders[it.id]
+            environment.log.info("Subscription added. Sender waiting: ${sender != null}, (total waiting ${receivers.size} (R), ${senders.size} (S))")
             if (sender != null) {
                 call.respondBytes(sender.receive(), ContentType.parse("application/json"))
                 senders.remove(it.id)
@@ -86,6 +87,7 @@ fun Application.module() {
             } else {
                 val id = it.parent.id
                 val receiver = receivers[id]
+                environment.log.info("Sending to subscriber. Receiver waiting: ${receiver != null}, (total waiting ${receivers.size} (R), ${senders.size} (S))")
                 if (receiver != null) {
                     receiver.respondBytes(call.receive(), ContentType.parse("application/json"))
                     receivers.remove(id)
@@ -106,6 +108,7 @@ fun Application.module() {
         delete<Subscription> {
             receivers.remove(it.id)
             call.respond(HttpStatusCode.NoContent)
+            environment.log.info("Deleted subscription, (total waiting ${receivers.size} (R), ${senders.size} (S))")
         }
     }
 }
