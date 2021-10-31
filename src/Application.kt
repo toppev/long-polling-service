@@ -39,6 +39,8 @@ fun Application.module() {
         method(HttpMethod.Options)
         method(HttpMethod.Delete)
         method(HttpMethod.Post)
+        // allowCredentials = true
+        allowNonSimpleContentTypes = true
         anyHost()
     }
     install(Locations)
